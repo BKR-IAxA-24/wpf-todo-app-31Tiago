@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.ObjectModel;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -16,9 +17,31 @@ namespace ToDo_Tiago
     /// </summary>
     public partial class MainWindow : Window
     {
+        private ObservableCollection<ToDoItem> Todos;
         public MainWindow()
         {
             InitializeComponent();
+            Todos = new ObservableCollection<ToDoItem>();
+            TodoList.ItemsSource = Todos;
         }
+
+        private void AddTodo_Click(object sender, RoutedEventArgs e)
+        {
+            string newTodoText = TodoInput.Text.Trim();
+
+            if (!string.IsNullOrEmpty(newTodoText))
+            {
+                ToDoItem newTodo = new ToDoItem(newTodoText);
+                Todos.Add(newTodo);
+                TodoInput.Clear();
+            }
+            else
+            {
+                MessageBox.Show("Bitte geben Sie ein To-Do ein.", "Hinweis", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
     }
 }
+
+
