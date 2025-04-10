@@ -1,45 +1,112 @@
 
-# To-Do-Tiago
+# 📡 Beispiel: Paketversand in ein anderes Netzwerk über denselben Router
 
-## Beschreibung
+## 🖥️ Ausgangssituation
 
-To-Do-Tiago ist eine einfache To-Do-Listen-Anwendung, die in C# mit WPF entwickelt wurde. Mit dieser Anwendung können Benutzer ihre Aufgaben verwalten, indem sie Aufgaben hinzufügen, als erledigt markieren und entfernen. Die To-Do-Liste wird in einer JSON-Datei gespeichert, sodass die Daten auch nach dem Schließen der Anwendung erhalten bleiben.
+| Gerät    | IP-Adresse       | Subnetz          | MAC-Adresse         | Gateway        |
+|----------|------------------|------------------|----------------------|----------------|
+| PC1      | 192.168.1.100    | 255.255.255.0    | AA-AA-AA-AA-AA-AA   | 192.168.1.1    |
+| PC2      | 192.168.2.50     | 255.255.255.0    | BB-BB-BB-BB-BB-BB   | 192.168.2.1    |
+| Router   | 192.168.1.1 / 192.168.2.1 | beide Netze | RR-RR-RR-RR-RR-RR   | –              |
 
-## Funktionen
+---
 
-- **Aufgabe hinzufügen**: Benutzer können eine neue Aufgabe in die Liste einfügen, indem sie den Titel in das Eingabefeld eingeben und auf den Button „Hinzufügen“ klicken.
-- **Aufgabe als erledigt markieren**: Aufgaben können durch Aktivieren der Checkbox „Erledigt“ als abgeschlossen markiert werden.
-- **Aufgabe entfernen**: Benutzer können eine Aufgabe aus der Liste entfernen, indem sie eine Aufgabe auswählen und auf „Entfernen“ klicken.
-- **Daten persistent speichern**: Alle To-Dos werden automatisch in einer JSON-Datei gespeichert und beim Neustart der Anwendung geladen.
+## 🔄 Beispiel: PC1 sendet ein Ping (ICMP Echo Request) an PC2
 
-## Installation
+### 🕒 Zeitpunkt 1: PC1 erkennt, dass Ziel außerhalb des eigenen Netzes liegt
 
-1. **Klonen Sie das Repository**:
-   ```bash
-   git clone https://github.com/benutzername/ToDo-Tiago.git
-   ```
+- Ziel-IP: `192.168.2.50`
+- Eigenes Subnetz: `192.168.1.0/24`
+- **Entscheidung:** Ziel liegt außerhalb → Paket wird an Gateway `192.168.1.1` gesendet
 
-2. **Projekt in Visual Studio öffnen**:
-   Öffnen Sie die Projektdatei in Visual Studio.
+---
 
-3. **Builden und Starten**:
-   Drücken Sie `F5`, um die Anwendung zu kompilieren und auszuführen.
+### 🕒 Zeitpunkt 2: PC1 benötigt MAC-Adresse des Gateways
 
-## Verwendung
+- **ARP Request:**
+  ```
+  Wer hat 192.168.1.1? Sag es 192.168.1.100
+  ```
+- **ARP Reply:**
+  ```
+  192.168.1.1 ist RR-RR-RR-RR-RR-RR
+  ```
 
-- Geben Sie eine neue Aufgabe in das Textfeld ein und klicken Sie auf „Hinzufügen“.
-- Verwenden Sie die Checkbox neben jeder Aufgabe, um sie als „Erledigt“ zu markieren.
-- Wählen Sie eine Aufgabe aus der Liste aus und klicken Sie auf „Entfernen“, um sie zu löschen.
+---
 
-## Anforderungen
+### 🕒 Zeitpunkt 3: PC1 baut das Paket
 
-- .NET Framework 5 oder höher
-- Visual Studio 2019 oder höher
+#### IP-Paket (Layer 3)
+| Feld         | Wert               |
+|--------------|--------------------|
+| Quell-IP     | 192.168.1.100      |
+| Ziel-IP      | 192.168.2.50       |
+| Protokoll    | ICMP               |
 
-## Beispiel
+#### Ethernet-Frame (Layer 2)
+| Feld         | Wert               |
+|--------------|--------------------|
+| Quell-MAC    | AA-AA-AA-AA-AA-AA |
+| Ziel-MAC     | RR-RR-RR-RR-RR-RR |
+| Typ          | IPv4               |
 
-![Screenshot der Anwendung](screenshot.png)
+→ **Paket geht an den Router**
 
-## Lizenz
+---
 
-Dieses Projekt ist unter der MIT-Lizenz lizenziert. Siehe die [LICENSE](LICENSE)-Datei für Details.
+### 🕒 Zeitpunkt 4: Router prüft das Zielnetz
+
+- Ziel-IP = `192.168.2.50`
+- **Router erkennt**: Ziel gehört zu `192.168.2.0/24`
+- **Routing vorhanden:** ✅
+- → Weiterleitung möglich
+
+---
+
+### 🕒 Zeitpunkt 5: Router kennt MAC-Adresse von PC2 nicht → ARP
+
+- **ARP Request:**
+  ```
+  Wer hat 192.168.2.50? Sag es 192.168.2.1
+  ```
+- **ARP Reply:**
+  ```
+  192.168.2.50 ist BB-BB-BB-BB-BB-BB
+  ```
+
+---
+
+### 🕒 Zeitpunkt 6: Router baut neues Frame
+
+#### IP-Paket (Layer 3)
+| Quell-IP | 192.168.1.100 |
+| Ziel-IP  | 192.168.2.50  |
+
+#### Ethernet-Frame (Layer 2)
+| Quell-MAC | RR-RR-RR-RR-RR-RR |
+| Ziel-MAC  | BB-BB-BB-BB-BB-BB |
+
+→ **Paket wird an PC2 gesendet**
+
+---
+
+### 🕒 Zeitpunkt 7: PC2 empfängt das Paket
+
+- Erkennt: Das ist für mich
+- Antwortet mit ICMP Echo Reply
+- Ziel-IP = `192.168.1.100`
+- MAC-Adresse des Senders (PC1) wird über ARP ermittelt (falls nötig)
+
+→ Antwort wird über den Router zurück an PC1 gesendet
+
+---
+
+## 🧠 Entscheidungsstellen im Überblick
+
+| Zeitpunkt | Entscheidung                                  |
+|-----------|-----------------------------------------------|
+| 1         | Ist Ziel im Subnetz? → Nein → Sende an Gateway |
+| 2         | MAC-Adresse bekannt? → Nein → ARP an Gateway   |
+| 4         | Routing-Eintrag für Zielnetz? → Ja → Weiterleitung |
+| 5         | MAC-Adresse des Ziels bekannt? → Nein → ARP     |
+| 7         | Bin ich das Ziel? → Ja → Verarbeite Paket       |
